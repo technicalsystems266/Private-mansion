@@ -1,53 +1,38 @@
-# Private Mansion
+# Private Mansion — on-demand Codespaces gallery
 
-A single-user, desktop-first media library. Paste a Google Drive share link to a ZIP; the server downloads and extracts it, uploads supported media to private S3-compatible storage (Cloudflare R2 recommended), and indexes it in SQLite.
+Private Mansion is a single-user, desktop-first media viewer. Start a GitHub Codespace only when you want to use the gallery. Paste a Google Drive ZIP share link; the Codespace downloads it directly, extracts supported photos/videos, creates image thumbnails, and displays the library in the browser. You do not download or extract the archive on your own device.
 
-## Important hosting requirement
+## Start it when you want to view pictures
 
-GitHub stores the source and runs CI. GitHub Actions runners are temporary and are not suitable for hosting a continuously available gallery or processing multi-gigabyte archives. Deploy this Docker app to a persistent container host with a persistent volume mounted at `/data`. Do not deploy the importer as a Vercel serverless function.
+1. Open https://github.com/technicalsystems266/Private-mansion
+2. Select **Code → Codespaces → Create codespace on main**.
+3. Wait for setup to finish. The gallery opens automatically on forwarded port 3000. If it does not, open the **Ports** tab and click the browser/open icon beside port 3000.
+4. Unlock with the initial Codespaces access key below.
+5. Paste the Google Drive share link and select **Import ZIP**. Keep the Codespace running until the import completes.
+6. Browse, search, and open photos/videos in the gallery.
+7. When finished, stop the Codespace from the Codespaces menu. Its workspace files persist when stopped; start the same Codespace again next time.
 
-## Required configuration
+Initial access key: `private-mansion-codespaces-access-key`. Change APP_SECRET in the Codespaces devcontainer configuration if you want a different key. Keep the Codespace and forwarded port private.
 
-Copy `.env.example` values into your host's secret/environment settings. Set a long random `APP_SECRET`, create a private R2 bucket, and provide its S3 endpoint, access key and secret. Never commit real credentials. The bucket must remain private; the app issues short-lived signed media URLs.
+## What runs where
 
-Set Google Drive sharing to **Anyone with the link — Viewer**. The server handles the standard Drive download confirmation page. Google Drive can still block downloads due to quota, permission, or anti-abuse limits; the app reports those failures.
+GitHub stores the application source. GitHub Actions runs automated tests and can build a container image. The actual import and gallery run only while your Codespace is running. Media files and the SQLite index are stored under `/workspaces/Private-mansion/data` in the Codespace workspace. No R2 account, separate hosting service, or always-on server is required for this mode.
 
-## Run locally
+Codespaces storage persists across stop/start, but it is not a permanent archive or backup. Do not delete the Codespace if you want to keep the extracted library. Large imports need enough Codespaces disk capacity for the ZIP, extracted media, thumbnails, and database. A 2GB archive can expand substantially. Defaults are a 5GiB ZIP limit and 30GiB expanded-media limit.
 
-Requires Node.js 22+ and a persistent writable `DATA_DIR`.
+## Google Drive
+
+Set the ZIP sharing to **Anyone with the link — Viewer**. Paste its share URL into the gallery. The server handles Google's usual large-download confirmation page where possible. Google may still deny a download if the file is private, quota-limited, or otherwise blocked; the import status will show the reason.
+
+The original ZIP in Drive is not changed. The temporary downloaded ZIP is removed after extraction.
+
+## Local development
+
+Requires Node.js 22+, then:
 
 ```sh
-cp .env.example .env
 npm install
-npm start
+APP_SECRET=replace-this-with-a-long-secret DATA_DIR=./data STORAGE_MODE=local npm start
 ```
 
-For local tests, use `npm test`. Docker:
-
-```sh
-docker build -t private-mansion .
-docker run --env-file .env -p 3000:3000 -v mansion-data:/data private-mansion
-```
-
-Open port 3000. Enter the APP_SECRET on the unlock screen.
-
-## GitHub
-
-The included workflow runs the Node test suite on pushes and pull requests. To publish a container image, configure GitHub Actions permissions and a registry destination. A deployment target and its credentials must be configured separately; GitHub cannot supply persistent runtime storage by itself.
-
-## Limits and safety
-
-Default archive limit is 5 GiB and expanded media limit is 30 GiB. ZIP paths are normalized and traversal entries ignored. Only common image/video formats are imported. Temporary archive and extraction files are removed after each job. Use a host with enough scratch disk for the ZIP plus extracted files and adequate memory/disk throughput.
-
-## Run it directly in GitHub Codespaces (no R2 account needed)
-
-1. Open the repository and choose **Code → Codespaces → Create codespace on main**.
-2. Wait for setup to finish. The dev container installs dependencies and starts the gallery on port 3000.
-3. Open the forwarded **Private Mansion Gallery** port. Unlock with the development key shown in `.devcontainer/devcontainer.json` (change it in Codespaces settings before using this for anything sensitive).
-4. Paste the Google Drive ZIP share link and choose **Import ZIP**. The ZIP is downloaded directly into the Codespace workspace, extracted, and stored under `.data/media`; the gallery reads the files from there.
-
-The Codespace must remain running while importing and viewing. Its workspace persists when stopped, subject to Codespaces storage/retention and account quota. A 2GB archive needs enough available Codespaces disk space for the ZIP and extracted files. The browser port is private to your GitHub account by default.
-
-## GitHub Actions one-off import
-
-Open **Actions → Import Drive ZIP (temporary runner) → Run workflow**, paste the Drive URL, and start it. This downloads and safely extracts supported media, then publishes a short-lived artifact named `private-mansion-media` (one-day retention). Actions does not host a browsable gallery; use Codespaces for in-browser viewing. Artifact storage limits and runner disk limits still apply.
+The Docker configuration is retained for optional persistent-host deployment. Codespaces is the intended on-demand workflow.
