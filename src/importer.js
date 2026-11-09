@@ -19,6 +19,7 @@ function progress(id,stage,message,processed=0,total=0,status="running"){
  jobUpdate.run({id,status,stage,message,processed,total,progress:total?Math.min(99,processed/total*100):0,updated_at:now()});
 }
 async function putFile(key,file,mimeType){
+ if(process.env.STORAGE_MODE!=="s3") { const dest=path.join(process.env.DATA_DIR||"/data","media",key); fs.mkdirSync(path.dirname(dest),{recursive:true}); await fs.promises.copyFile(file,dest); return; }
  const body=fs.createReadStream(file);
  await new Upload({client:s3,params:{Bucket:process.env.S3_BUCKET,Key:key,Body:body,ContentType:mimeType},partSize:16*1024*1024,queueSize:3}).done();
 }
@@ -32,7 +33,7 @@ export async function readMediaUrl(key,mimeType){
 export async function runImport(job){
  const root=process.env.DATA_DIR||"/data"; const zip=path.join(root,`${job.id}.zip`); const extract=path.join(root,`extract-${job.id}`);
  try{
-  if(!process.env.S3_BUCKET||!process.env.S3_ENDPOINT||!process.env.S3_ACCESS_KEY_ID||!process.env.S3_SECRET_ACCESS_KEY) throw new Error("Cloud storage is not configured. Add the R2/S3 settings in your deployment environment.");
+  if(process.env.STORAGE_MODE==="s3"&&(!process.env.S3_BUCKET||!process.env.S3_ENDPOINT||!process.env.S3_ACCESS_KEY_ID||!process.env.S3_SECRET_ACCESS_KEY)) throw new Error("Cloud storage is not configured. Add the R2/S3 settings in your deployment environment.");
   fs.mkdirSync(extract,{recursive:true});
   progress(job.id,"downloading","Connecting to Google Drive…");
   const {stream,size}=await openDriveDownload(job.source);
@@ -58,7 +59,7 @@ export async function runImport(job){
    const stat=fs.statSync(target);
    mediaInsert.run(id,path.basename(normalized),key,mimeType,stat.size,now());
    if(mimeType.startsWith("image/")){
-    try{const thumb=await sharp(target).rotate().resize({width:480,height:320,fit:"inside",withoutEnlargement:true}).webp({quality:78}).toBuffer();await s3.send(new PutObjectCommand({Bucket:process.env.S3_BUCKET,Key:`thumbs/${id}.webp`,Body:thumb,ContentType:"image/webp"}));}catch{}
+    try{const thumb=await sharp(target).rotate().resize({width:480,height:320,fit:"inside",withoutEnlargement:true}).webp({quality:78}).toBuffer();if(process.env.STORAGE_MODE==="s3") await s3.send(new PutObjectCommand({Bucket:process.env.S3_BUCKET,Key:`thumbs/${id}.webp`,Body:thumb,ContentType:"image/webp"}));else{const dest=path.join(root,"media","thumbs",id+".webp");fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,thumb);}}catch{}
    }
    fs.rmSync(target,{force:true}); indexed++; processed+=entry.uncompressedSize||stat.size;
    progress(job.id,"indexing",`Imported ${indexed} media files`,processed,expanded);
