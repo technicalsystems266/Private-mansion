@@ -1,0 +1,90 @@
+name: Import Drive ZIP (temporary runner)
+on:
+  workflow_dispatch:
+    inputs:
+      drive_url:
+        description: Google Drive share URL for a ZIP (Anyone with the link — Viewer)
+        required: true
+        type: string
+jobs:
+  download-and-inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download ZIP from Drive
+        env:
+          DRIVE_URL: ${{ inputs.drive_url }}
+        run: |
+          python3 - <<'PY'
+          import os, re, urllib.request, urllib.parse, http.cookiejar
+          url=os.environ["DRIVE_URL"]
+          m=re.search(r"/file/d/([^/]+)",url) or re.search(r"[?&]id=([^&]+)",url)
+          if not m: raise SystemExit("Could not find Drive file ID in URL")
+          file_id=m.group(1)
+          jar=http.cookiejar.CookieJar()
+          opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+          base="https://drive.google.com/uc?export=download&id="+urllib.parse.quote(file_id)
+          response=opener.open(urllib.request.Request(base,headers={"User-Agent":"Mozilla/5.0"}))
+          content_type=response.headers.get("Content-Type","")
+          if "text/html" in content_type:
+              html=response.read().decode("utf-8","ignore")
+              if "quota" in html.lower() or "too many users" in html.lower():
+                  raise SystemExit("Google Drive download quota exceeded")
+              token=re.search(r"confirm=([0-9A-Za-z_]+)",html) or re.search(r'name="confirm" value="([^"]+)"',html)
+              if not token: raise SystemExit("Drive did not return a downloadable file. Check link sharing.")
+              response=opener.open(base+"&confirm="+urllib.parse.quote(token.group(1)))
+          limit=5*1024**3
+          total=0
+          with open("/tmp/library.zip","wb") as out:
+              while True:
+                  chunk=response.read(8*1024*1024)
+                  if not chunk: break
+                  total+=len(chunk)
+                  if total>limit: raise SystemExit("ZIP exceeds 5 GiB limit")
+                  out.write(chunk)
+                  print(f"Downloaded {total/1024**3:.2f} GiB",flush=True)
+          if total==0: raise SystemExit("Downloaded file is empty")
+          PY
+      - name: Extract safely and create media index
+        run: |
+          mkdir -p output
+          python3 - <<'PY'
+          import zipfile, os, pathlib, json, mimetypes
+          z=zipfile.ZipFile("/tmp/library.zip")
+          root=pathlib.Path("output/media").resolve()
+          limit=30*1024**3
+          total=0
+          media=[]
+          allowed={".jpg",".jpeg",".png",".gif",".webp",".avif",".bmp",".tif",".tiff",".mp4",".m4v",".mov",".webm",".mkv",".avi"}
+          for info in z.infolist():
+              if info.is_dir(): continue
+              name=info.filename.replace("\\","/")
+              if name.startswith("/") or ".." in pathlib.PurePosixPath(name).parts: continue
+              if pathlib.Path(name).suffix.lower() not in allowed: continue
+              total+=info.file_size
+              if total>limit: raise SystemExit("Expanded media exceeds 30 GiB limit")
+              dest=(root/pathlib.Path(name).name)
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              # Prefix each file to avoid duplicate basename collisions.
+              dest=root/(str(len(media)).zfill(7)+"_"+pathlib.Path(name).name)
+              with z.open(info) as src, open(dest,"wb") as out:
+                  while True:
+                      b=src.read(8*1024*1024)
+                      if not b: break
+                      out.write(b)
+              media.append({"name":pathlib.Path(name).name,"path":str(dest.relative_to("output")),"type":mimetypes.guess_type(name)[0] or "application/octet-stream","size":info.file_size})
+              print(f"Extracted {len(media)}: {pathlib.Path(name).name}",flush=True)
+          pathlib.Path("output/index.json").write_text(json.dumps(media,indent=2))
+          print(f"Indexed {len(media)} media files")
+          PY
+      - name: Upload extracted media and index
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-mansion-media
+          path: output/
+          if-no-files-found: error
+          retention-days: 1
