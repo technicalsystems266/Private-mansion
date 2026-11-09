@@ -1,0 +1,21 @@
+{
+  "name": "Private Mansion Media Viewer",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Private Mansion Gallery",
+      "onAutoForward": "openBrowser",
+      "visibility": "private"
+    }
+  },
+  "containerEnv": {
+    "APP_SECRET": "codespaces-local-access-key-change-this",
+    "DATA_DIR": "/workspaces/Private-mansion/.data",
+    "STORAGE_MODE": "local",
+    "MAX_ARCHIVE_BYTES": "5368709120",
+    "MAX_EXPANDED_BYTES": "32212254720"
+  },
+  "postCreateCommand": "npm install",
+  "postStartCommand": "npm run dev"
+}
