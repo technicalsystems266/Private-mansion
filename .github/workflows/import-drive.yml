@@ -76,7 +76,7 @@ jobs:
                       b=src.read(8*1024*1024)
                       if not b: break
                       out.write(b)
-              media.append({"name":pathlib.Path(name).name,"path":str(dest.relative_to("output")),"type":mimetypes.guess_type(name)[0] or "application/octet-stream","size":info.file_size})
+              media.append({"name":pathlib.Path(name).name,"path":str(dest.relative_to(pathlib.Path("output").resolve())),"type":mimetypes.guess_type(name)[0] or "application/octet-stream","size":info.file_size})
               print(f"Extracted {len(media)}: {pathlib.Path(name).name}",flush=True)
           pathlib.Path("output/index.json").write_text(json.dumps(media,indent=2))
           print(f"Indexed {len(media)} media files")
