@@ -18,6 +18,7 @@ app.post("/api/import",(req,res)=>{const source=String(req.body?.url||"").trim()
 app.get("/api/jobs",(_req,res)=>res.json(jobsList.all()));
 app.get("/api/jobs/:id",(req,res)=>{const job=jobGet.get(req.params.id);if(!job)return res.status(404).json({error:"Job not found"});res.json(job);});
 app.get("/api/media",(req,res)=>{const q=String(req.query.q||"").slice(0,100).toLowerCase();const rows=mediaList.all().filter(x=>!q||x.name.toLowerCase().includes(q));res.json(rows);});
-app.get("/api/media/:id/url",async(req,res)=>{try{const item=mediaGet.get(req.params.id);if(!item)return res.status(404).json({error:"Media not found"});res.json({url:await readMediaUrl(item.object_key,item.mime),mime:item.mime,name:item.name});}catch(e){res.status(500).json({error:e.message});}});
+app.get("/api/media/:id/url",async(req,res)=>{try{const item=mediaGet.get(req.params.id);if(!item)return res.status(404).json({error:"Media not found"});if(process.env.STORAGE_MODE!=="s3")return res.json({url:"/api/media/"+item.id+"/file",mime:item.mime,name:item.name});res.json({url:await readMediaUrl(item.object_key,item.mime),mime:item.mime,name:item.name});}catch(e){res.status(500).json({error:e.message});}});
+app.get("/api/media/:id/file",auth,(req,res)=>{const item=mediaGet.get(req.params.id);if(!item||process.env.STORAGE_MODE==="s3")return res.sendStatus(404);res.type(item.mime).sendFile(path.join(process.env.DATA_DIR||"/data","media",item.object_key));});
 const here=path.dirname(fileURLToPath(import.meta.url));app.use(express.static(path.join(here,"../public")));app.get("/{*path}",(req,res)=>res.sendFile(path.join(here,"../public/index.html")));
 app.listen(port,"0.0.0.0",()=>console.log(`Private Mansion listening on ${port}`));
