@@ -1,0 +1,23 @@
+import "dotenv/config";
+import express from "express";
+import helmet from "helmet";
+import crypto from "node:crypto";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+import {jobInsert,jobGet,jobsList,mediaList,mediaGet} from "./db.js";
+import {runImport,readMediaUrl} from "./importer.js";
+const app=express(), port=Number(process.env.PORT||3000), secret=process.env.APP_SECRET;
+if(!secret||secret.length<24) throw new Error("Set APP_SECRET to a random value at least 24 characters long.");
+app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"},contentSecurityPolicy:{directives:{"img-src":["'self'","data:","blob:"],"media-src":["'self'","blob:"]}}}));
+app.use(express.json({limit:"32kb"}));
+function auth(req,res,next){const token=(req.headers.authorization||"").replace(/^Bearer /i,"");const a=Buffer.from(token),b=Buffer.from(secret);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({error:"Unauthorised"});next();}
+app.get("/api/health",(_req,res)=>res.json({ok:true,service:"Private Mansion"}));
+app.post("/api/auth", (req,res)=>{const token=String(req.body?.secret||"");const a=Buffer.from(token),b=Buffer.from(secret);if(a.length!==b.length||!crypto.timingSafeEqual(a,b))return res.status(401).json({error:"Incorrect access key"});res.json({ok:true});});
+app.use("/api",auth);
+app.post("/api/import",(req,res)=>{const source=String(req.body?.url||"").trim();if(!/^https:\/\/(drive\.google\.com|docs\.google\.com)\//i.test(source))return res.status(400).json({error:"Enter a Google Drive share link."});const id=crypto.randomUUID(),stamp=new Date().toISOString();const job={id,source};jobInsert.run(id,source,"queued","queued","Waiting to start",stamp,stamp);res.status(202).json({id});setImmediate(()=>runImport(job));});
+app.get("/api/jobs",(_req,res)=>res.json(jobsList.all()));
+app.get("/api/jobs/:id",(req,res)=>{const job=jobGet.get(req.params.id);if(!job)return res.status(404).json({error:"Job not found"});res.json(job);});
+app.get("/api/media",(req,res)=>{const q=String(req.query.q||"").slice(0,100).toLowerCase();const rows=mediaList.all().filter(x=>!q||x.name.toLowerCase().includes(q));res.json(rows);});
+app.get("/api/media/:id/url",async(req,res)=>{try{const item=mediaGet.get(req.params.id);if(!item)return res.status(404).json({error:"Media not found"});res.json({url:await readMediaUrl(item.object_key,item.mime),mime:item.mime,name:item.name});}catch(e){res.status(500).json({error:e.message});}});
+const here=path.dirname(fileURLToPath(import.meta.url));app.use(express.static(path.join(here,"../public")));app.get("*",(req,res)=>res.sendFile(path.join(here,"../public/index.html")));
+app.listen(port,"0.0.0.0",()=>console.log(`Private Mansion listening on ${port}`));
