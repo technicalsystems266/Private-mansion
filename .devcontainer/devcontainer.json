@@ -9,7 +9,7 @@
       "visibility": "private"
     }
   },
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "npm install && node -e \"const fs=require(\u0027fs\u0027),c=require(\u0027crypto\u0027);const k=c.randomBytes(32).toString(\u0027hex\u0027);fs.writeFileSync(\u0027.env\u0027,\u0027APP_SECRET=\u0027+k+\u0027\\n\u0027);console.log(\u0027\\nPRIVATE MANSION ACCESS KEY: \u0027+k+\u0027\\nSave this key; it is not committed to GitHub.\\n\u0027);\"",
   "postStartCommand": "npm run dev",
   "remoteEnv": {
     "NODE_ENV": "development",
