@@ -38,3 +38,16 @@ The included workflow runs the Node test suite on pushes and pull requests. To p
 ## Limits and safety
 
 Default archive limit is 5 GiB and expanded media limit is 30 GiB. ZIP paths are normalized and traversal entries ignored. Only common image/video formats are imported. Temporary archive and extraction files are removed after each job. Use a host with enough scratch disk for the ZIP plus extracted files and adequate memory/disk throughput.
+
+## Run it directly in GitHub Codespaces (no R2 account needed)
+
+1. Open the repository and choose **Code → Codespaces → Create codespace on main**.
+2. Wait for setup to finish. The dev container installs dependencies and starts the gallery on port 3000.
+3. Open the forwarded **Private Mansion Gallery** port. Unlock with the development key shown in `.devcontainer/devcontainer.json` (change it in Codespaces settings before using this for anything sensitive).
+4. Paste the Google Drive ZIP share link and choose **Import ZIP**. The ZIP is downloaded directly into the Codespace workspace, extracted, and stored under `.data/media`; the gallery reads the files from there.
+
+The Codespace must remain running while importing and viewing. Its workspace persists when stopped, subject to Codespaces storage/retention and account quota. A 2GB archive needs enough available Codespaces disk space for the ZIP and extracted files. The browser port is private to your GitHub account by default.
+
+## GitHub Actions one-off import
+
+Open **Actions → Import Drive ZIP (temporary runner) → Run workflow**, paste the Drive URL, and start it. This downloads and safely extracts supported media, then publishes a short-lived artifact named `private-mansion-media` (one-day retention). Actions does not host a browsable gallery; use Codespaces for in-browser viewing. Artifact storage limits and runner disk limits still apply.
