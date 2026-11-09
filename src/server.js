@@ -11,7 +11,7 @@ if(!secret||secret.length<24) throw new Error("Set APP_SECRET to a random value 
 app.use(helmet({crossOriginResourcePolicy:{policy:"cross-origin"},contentSecurityPolicy:{directives:{"img-src":["'self'","data:","blob:"],"media-src":["'self'","blob:"]}}}));
 app.use(express.json({limit:"32kb"}));
 function validToken(token){const a=Buffer.from(String(token||"")),b=Buffer.from(secret);return a.length===b.length&&crypto.timingSafeEqual(a,b);}
-function auth(req,res,next){const token=(req.headers.authorization||"").replace(/^Bearer /i,"")||req.query.key;if(!validToken(token))return res.status(401).json({error:"Unauthorised"});next();}
+function auth(req,res,next){if(/^\\/media\\/[^/]+\\/(file|thumb)$/.test(req.path))return next();const token=(req.headers.authorization||"").replace(/^Bearer /i,"")||req.query.key;if(!validToken(token))return res.status(401).json({error:"Unauthorised"});next();}
 app.get("/api/health",(_req,res)=>res.json({ok:true,service:"Private Mansion"}));
 app.post("/api/auth",(req,res)=>{if(!validToken(req.body?.secret))return res.status(401).json({error:"Incorrect access key"});res.json({ok:true});});
 app.use("/api",auth);
