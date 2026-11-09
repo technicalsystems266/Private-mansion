@@ -19,5 +19,5 @@ app.get("/api/jobs",(_req,res)=>res.json(jobsList.all()));
 app.get("/api/jobs/:id",(req,res)=>{const job=jobGet.get(req.params.id);if(!job)return res.status(404).json({error:"Job not found"});res.json(job);});
 app.get("/api/media",(req,res)=>{const q=String(req.query.q||"").slice(0,100).toLowerCase();const rows=mediaList.all().filter(x=>!q||x.name.toLowerCase().includes(q));res.json(rows);});
 app.get("/api/media/:id/url",async(req,res)=>{try{const item=mediaGet.get(req.params.id);if(!item)return res.status(404).json({error:"Media not found"});res.json({url:await readMediaUrl(item.object_key,item.mime),mime:item.mime,name:item.name});}catch(e){res.status(500).json({error:e.message});}});
-const here=path.dirname(fileURLToPath(import.meta.url));app.use(express.static(path.join(here,"../public")));app.get("*",(req,res)=>res.sendFile(path.join(here,"../public/index.html")));
+const here=path.dirname(fileURLToPath(import.meta.url));app.use(express.static(path.join(here,"../public")));app.get("/{*path}",(req,res)=>res.sendFile(path.join(here,"../public/index.html")));
 app.listen(port,"0.0.0.0",()=>console.log(`Private Mansion listening on ${port}`));
